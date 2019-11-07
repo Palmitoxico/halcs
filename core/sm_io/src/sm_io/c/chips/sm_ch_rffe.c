@@ -41,6 +41,18 @@
 #define SMCH_RFFE_WAIT(usecs)             usleep(usecs)
 #define SMCH_RFFE_WAIT_DFLT               SMCH_RFFE_WAIT(SMCH_RFFE_USECS_WAIT)
 
+enum scpi_data_type_t {
+    scpi_i64,
+    scpi_f64,
+    scpi_bool,
+    scpi_str,
+};
+
+struct scpi_request_t {
+    char* request_str;
+    enum scpi_data_type_t data_type;
+};
+
 struct _smch_rffe_t {
     smpr_t *proto;                                       /* PROTO protocol object */
 };
@@ -98,11 +110,11 @@ smch_err_e smch_rffe_write_var (smch_rffe_t *self, uint32_t id, uint8_t *data,
 
     smch_err_e err = SMCH_SUCCESS;
 
-    smpr_err_e smpr_err = smpr_bsmp_write_var_by_id (self->proto, id, data, size);
-    ASSERT_TEST(smpr_err == SMPR_SUCCESS, "Could not write variable to SMPR",
-            err_smpr_write_var, SMCH_ERR_RW_SMPR);
+    /*
+     * Stub
+     */
+    printf("RFFE WRITE STUB: id: %d, size: %zd\n", id, size);
 
-err_smpr_write_var:
     return err;
 }
 
@@ -114,11 +126,11 @@ smch_err_e smch_rffe_read_var (smch_rffe_t *self, uint32_t id, uint8_t *data,
 
     smch_err_e err = SMCH_SUCCESS;
 
-    smpr_err_e smpr_err = smpr_bsmp_read_var_by_id (self->proto, id, data, size);
-    ASSERT_TEST(smpr_err == SMPR_SUCCESS, "Could not read variable to SMPR",
-            err_smpr_read_var, SMCH_ERR_RW_SMPR);
+    /*
+     * Stub
+     */
+    printf("RFFE READ STUB: id: %d, size: %zd\n", id, size);
 
-err_smpr_read_var:
     return err;
 }
 

@@ -57,9 +57,9 @@ struct _smpr_bsmp_t {
     smpr_proto_ops_t proto_ops;       /* BSMP protocol operations */
 };
 
-static smpr_err_e _smpr_proto_bsmp_get_handlers (smpr_t *self);
-static int _smpr_proto_bsmp_send (uint8_t *data, uint32_t *count);
-static int _smpr_proto_bsmp_recv (uint8_t *data, uint32_t *count);
+/* static smpr_err_e _smpr_proto_bsmp_get_handlers (smpr_t *self); */
+/* static int _smpr_proto_bsmp_send (uint8_t *data, uint32_t *count); */
+/* static int _smpr_proto_bsmp_recv (uint8_t *data, uint32_t *count); */
 
 /*************** Our methods implementation **********/
 
@@ -123,16 +123,16 @@ static int bsmp_open (smpr_t *self, uint64_t base, void *args)
     ASSERT_TEST(err == SMPR_SUCCESS, "Could not set protocol handler",
             err_proto_handler_set);
 
-    /* Finish initializing BSMP protocol here */
-    enum bsmp_err berr = bsmp_client_init (bsmp_proto->client, _smpr_proto_bsmp_send,
-            _smpr_proto_bsmp_recv);
-    if (berr != BSMP_SUCCESS) {
-        DBE_DEBUG (DBG_SM_PR | DBG_LVL_ERR, "[sm_pr:bsmp] Could not initialize "
-                "BSMP protocol handler: %s\n", bsmp_error_str (berr));
-            goto err_proto_handler_init;
-    }
+    /* /\* Finish initializing BSMP protocol here *\/ */
+    /* enum bsmp_err berr = bsmp_client_init (bsmp_proto->client, _smpr_proto_bsmp_send, */
+    /*         _smpr_proto_bsmp_recv); */
+    /* if (berr != BSMP_SUCCESS) { */
+    /*     DBE_DEBUG (DBG_SM_PR | DBG_LVL_ERR, "[sm_pr:bsmp] Could not initialize " */
+    /*             "BSMP protocol handler: %s\n", bsmp_error_str (berr)); */
+    /*         goto err_proto_handler_init; */
+    /* } */
 
-    err = _smpr_proto_bsmp_get_handlers (self);
+    err = SMPR_SUCCESS; //_smpr_proto_bsmp_get_handlers (self);
     ASSERT_TEST (err == SMPR_SUCCESS, "Could not get BSMP handlers",
             err_bsmp_handler_init);
 
@@ -143,7 +143,7 @@ static int bsmp_open (smpr_t *self, uint64_t base, void *args)
 
 err_bsmp_handler_init:
     /* There is no bsmp_destroy, as it has nothing allocated dynamically */
-err_proto_handler_init:
+//err_proto_handler_init:
     smpr_unset_handler (self);
 err_proto_handler_set:
     smpr_proto_bsmp_destroy (&bsmp_proto);
@@ -340,153 +340,153 @@ err_proto_handler:
 /*************************** Helper functions *********************************/
 
 /* Get all BSMP handlers */
-static smpr_err_e _smpr_proto_bsmp_get_handlers (smpr_t *self)
-{
-    smpr_err_e err = SMPR_SUCCESS;
-    smpr_proto_bsmp_t *bsmp_proto = smpr_get_handler (self);
-    ASSERT_TEST(bsmp_proto != NULL, "Could not get SMPR protocol handler",
-            err_proto_handler, SMPR_ERR_PROTO_INFO);
+/* static smpr_err_e _smpr_proto_bsmp_get_handlers (smpr_t *self) */
+/* { */
+/*     smpr_err_e err = SMPR_SUCCESS; */
+/*     smpr_proto_bsmp_t *bsmp_proto = smpr_get_handler (self); */
+/*     ASSERT_TEST(bsmp_proto != NULL, "Could not get SMPR protocol handler", */
+/*             err_proto_handler, SMPR_ERR_PROTO_INFO); */
 
-    /* Get all BSMP entities */
-    enum bsmp_err berr = bsmp_get_funcs_list (bsmp_proto->client, &bsmp_proto->funcs_list);
-    ASSERT_TEST(berr==BSMP_SUCCESS, "Could not retrieve list of functions",
-            err_ret_funcs, SMPR_ERR_PROTO_INFO);
+/*     /\* Get all BSMP entities *\/ */
+/*     enum bsmp_err berr = bsmp_get_funcs_list (bsmp_proto->client, &bsmp_proto->funcs_list); */
+/*     ASSERT_TEST(berr==BSMP_SUCCESS, "Could not retrieve list of functions", */
+/*             err_ret_funcs, SMPR_ERR_PROTO_INFO); */
 
-    /* Print list of functions */
-    DBE_DEBUG (DBG_SM_PR | DBG_LVL_INFO, "[sm_pr:bsmp] BSMP server has %d Functions(s):\n",
-            bsmp_proto->funcs_list->count);
-    uint32_t i;
-    for(i = 0; i < bsmp_proto->funcs_list->count; ++i) {
-        DBE_DEBUG (DBG_SM_PR | DBG_LVL_INFO,
-                "[sm_pr:bsmp] ID[%d] INPUT[%2d bytes] OUTPUT[%2d bytes]\n",
-                bsmp_proto->funcs_list->list[i].id,
-                bsmp_proto->funcs_list->list[i].input_size,
-                bsmp_proto->funcs_list->list[i].output_size);
-    }
+/*     /\* Print list of functions *\/ */
+/*     DBE_DEBUG (DBG_SM_PR | DBG_LVL_INFO, "[sm_pr:bsmp] BSMP server has %d Functions(s):\n", */
+/*             bsmp_proto->funcs_list->count); */
+/*     uint32_t i; */
+/*     for(i = 0; i < bsmp_proto->funcs_list->count; ++i) { */
+/*         DBE_DEBUG (DBG_SM_PR | DBG_LVL_INFO, */
+/*                 "[sm_pr:bsmp] ID[%d] INPUT[%2d bytes] OUTPUT[%2d bytes]\n", */
+/*                 bsmp_proto->funcs_list->list[i].id, */
+/*                 bsmp_proto->funcs_list->list[i].input_size, */
+/*                 bsmp_proto->funcs_list->list[i].output_size); */
+/*     } */
 
-    berr = bsmp_get_vars_list (bsmp_proto->client, &bsmp_proto->vars_list);
-    ASSERT_TEST(berr==BSMP_SUCCESS, "Could not retrieve list of variables",
-            err_ret_vars, SMPR_ERR_PROTO_INFO);
+/*     berr = bsmp_get_vars_list (bsmp_proto->client, &bsmp_proto->vars_list); */
+/*     ASSERT_TEST(berr==BSMP_SUCCESS, "Could not retrieve list of variables", */
+/*             err_ret_vars, SMPR_ERR_PROTO_INFO); */
 
-    /* Print list of variables */
-    DBE_DEBUG (DBG_SM_PR | DBG_LVL_INFO, "[sm_pr:bsmp] BSMP server has %d Variable(s):\n",
-            bsmp_proto->vars_list->count);
-    for(i = 0; i < bsmp_proto->vars_list->count; ++i) {
-        DBE_DEBUG (DBG_SM_PR | DBG_LVL_INFO,
-                "[sm_pr:bsmp] ID[%d] SIZE[%2d] %s\n",
-                bsmp_proto->vars_list->list[i].id,
-                bsmp_proto->vars_list->list[i].size,
-                bsmp_proto->vars_list->list[i].writable ? "WRITABLE" : "READ-ONLY");
-    }
+/*     /\* Print list of variables *\/ */
+/*     DBE_DEBUG (DBG_SM_PR | DBG_LVL_INFO, "[sm_pr:bsmp] BSMP server has %d Variable(s):\n", */
+/*             bsmp_proto->vars_list->count); */
+/*     for(i = 0; i < bsmp_proto->vars_list->count; ++i) { */
+/*         DBE_DEBUG (DBG_SM_PR | DBG_LVL_INFO, */
+/*                 "[sm_pr:bsmp] ID[%d] SIZE[%2d] %s\n", */
+/*                 bsmp_proto->vars_list->list[i].id, */
+/*                 bsmp_proto->vars_list->list[i].size, */
+/*                 bsmp_proto->vars_list->list[i].writable ? "WRITABLE" : "READ-ONLY"); */
+/*     } */
 
-    berr = bsmp_get_curves_list (bsmp_proto->client, &bsmp_proto->curves_list);
-    ASSERT_TEST(berr==BSMP_SUCCESS, "Could not retrieve list of curves",
-            err_ret_curves, SMPR_ERR_PROTO_INFO);
+/*     berr = bsmp_get_curves_list (bsmp_proto->client, &bsmp_proto->curves_list); */
+/*     ASSERT_TEST(berr==BSMP_SUCCESS, "Could not retrieve list of curves", */
+/*             err_ret_curves, SMPR_ERR_PROTO_INFO); */
 
-    /* Print list of curves */
-    DBE_DEBUG (DBG_SM_PR | DBG_LVL_INFO, "[sm_pr:bsmp] BSMP server has %d Curve(s):\n",
-            bsmp_proto->curves_list->count);
-    for(i = 0; i < bsmp_proto->curves_list->count; ++i) {
-        DBE_DEBUG (DBG_SM_PR | DBG_LVL_INFO,
-                "[sm_pr:bsmp] ID[%d] BLOCKS[%3d (%5d bytes each)] %s\n",
-                bsmp_proto->curves_list->list[i].id,
-                bsmp_proto->curves_list->list[i].nblocks,
-                bsmp_proto->curves_list->list[i].block_size,
-                bsmp_proto->curves_list->list[i].writable ? "WRITABLE" : "READ-ONLY");
-    }
+/*     /\* Print list of curves *\/ */
+/*     DBE_DEBUG (DBG_SM_PR | DBG_LVL_INFO, "[sm_pr:bsmp] BSMP server has %d Curve(s):\n", */
+/*             bsmp_proto->curves_list->count); */
+/*     for(i = 0; i < bsmp_proto->curves_list->count; ++i) { */
+/*         DBE_DEBUG (DBG_SM_PR | DBG_LVL_INFO, */
+/*                 "[sm_pr:bsmp] ID[%d] BLOCKS[%3d (%5d bytes each)] %s\n", */
+/*                 bsmp_proto->curves_list->list[i].id, */
+/*                 bsmp_proto->curves_list->list[i].nblocks, */
+/*                 bsmp_proto->curves_list->list[i].block_size, */
+/*                 bsmp_proto->curves_list->list[i].writable ? "WRITABLE" : "READ-ONLY"); */
+/*     } */
 
-    berr = bsmp_get_groups_list (bsmp_proto->client, &bsmp_proto->groups_list);
-    ASSERT_TEST(berr==BSMP_SUCCESS, "Could not retrieve list of groups",
-            err_ret_groups, SMPR_ERR_PROTO_INFO);
+/*     berr = bsmp_get_groups_list (bsmp_proto->client, &bsmp_proto->groups_list); */
+/*     ASSERT_TEST(berr==BSMP_SUCCESS, "Could not retrieve list of groups", */
+/*             err_ret_groups, SMPR_ERR_PROTO_INFO); */
 
-    /* Print list of groups. Only some proprieties, not the variables that compose them */
-    DBE_DEBUG (DBG_SM_PR | DBG_LVL_INFO, "[sm_pr:bsmp] BSMP server has %d Group(s):\n",
-            bsmp_proto->groups_list->count);
-    for(i = 0; i < bsmp_proto->groups_list->count; ++i) {
-        DBE_DEBUG (DBG_SM_PR | DBG_LVL_INFO,
-                "[sm_pr:bsmp] ID[%d] SIZE[%2d] %s\n",
-                bsmp_proto->groups_list->list[i].id,
-                bsmp_proto->groups_list->list[i].size,
-                bsmp_proto->groups_list->list[i].writable ? "WRITABLE" : "READ-ONLY");
-    }
+/*     /\* Print list of groups. Only some proprieties, not the variables that compose them *\/ */
+/*     DBE_DEBUG (DBG_SM_PR | DBG_LVL_INFO, "[sm_pr:bsmp] BSMP server has %d Group(s):\n", */
+/*             bsmp_proto->groups_list->count); */
+/*     for(i = 0; i < bsmp_proto->groups_list->count; ++i) { */
+/*         DBE_DEBUG (DBG_SM_PR | DBG_LVL_INFO, */
+/*                 "[sm_pr:bsmp] ID[%d] SIZE[%2d] %s\n", */
+/*                 bsmp_proto->groups_list->list[i].id, */
+/*                 bsmp_proto->groups_list->list[i].size, */
+/*                 bsmp_proto->groups_list->list[i].writable ? "WRITABLE" : "READ-ONLY"); */
+/*     } */
 
-err_ret_funcs:
-err_ret_vars:
-err_ret_curves:
-err_ret_groups:
-err_proto_handler:
-    return err;
-}
+/* err_ret_funcs: */
+/* err_ret_vars: */
+/* err_ret_curves: */
+/* err_ret_groups: */
+/* err_proto_handler: */
+/*     return err; */
+/* } */
 
 /*************************** Static functions *********************************/
 /* BSMP function I/O */
-static int _smpr_proto_bsmp_send (uint8_t *data, uint32_t *count)
-{
-    int err = 0;
+/* static int _smpr_proto_bsmp_send (uint8_t *data, uint32_t *count) */
+/* { */
+/*     int err = 0; */
 
-    DBE_DEBUG (DBG_LL_IO | DBG_LVL_TRACE, "[sm_pr:bsmp] Sending %u bytes\n", *count);
-    ssize_t ret = smio_thsafe_client_write_block (bsmp_glue.parent, 0, *count,
-            (uint32_t *) data);
-    DBE_DEBUG (DBG_LL_IO | DBG_LVL_TRACE, "[sm_pr:bsmp] Sent %u bytes\n", *count);
+/*     DBE_DEBUG (DBG_LL_IO | DBG_LVL_TRACE, "[sm_pr:bsmp] Sending %u bytes\n", *count); */
+/*     ssize_t ret = smio_thsafe_client_write_block (bsmp_glue.parent, 0, *count, */
+/*             (uint32_t *) data); */
+/*     DBE_DEBUG (DBG_LL_IO | DBG_LVL_TRACE, "[sm_pr:bsmp] Sent %u bytes\n", *count); */
 
-    if (ret < 0) {
-        *count = 0;
-        err = -1;
-        goto err_packet_send;
-    }
+/*     if (ret < 0) { */
+/*         *count = 0; */
+/*         err = -1; */
+/*         goto err_packet_send; */
+/*     } */
 
-    /* Update count with the number of bytes received */
-    *count = ret;
+/*     /\* Update count with the number of bytes received *\/ */
+/*     *count = ret; */
 
-err_packet_send:
-    return err;
-}
+/* err_packet_send: */
+/*     return err; */
+/* } */
 
-static int _smpr_proto_bsmp_recv (uint8_t *data, uint32_t *count)
-{
-    uint32_t len = BSMP_HEADER_SIZE;
-    int err = 0;
+/* static int _smpr_proto_bsmp_recv (uint8_t *data, uint32_t *count) */
+/* { */
+/*     uint32_t len = BSMP_HEADER_SIZE; */
+/*     int err = 0; */
 
-    /* First we must received the packet header */
-    DBE_DEBUG (DBG_LL_IO | DBG_LVL_TRACE, "[sm_pr:bsmp] Receiving %u bytes\n", len);
-    ssize_t ret = smio_thsafe_client_read_block (bsmp_glue.parent, 0, len,
-            (uint32_t *) data);
-    DBE_DEBUG (DBG_LL_IO | DBG_LVL_TRACE, "[sm_pr:bsmp] Received %zd bytes\n", ret);
+/*     /\* First we must received the packet header *\/ */
+/*     DBE_DEBUG (DBG_LL_IO | DBG_LVL_TRACE, "[sm_pr:bsmp] Receiving %u bytes\n", len); */
+/*     ssize_t ret = smio_thsafe_client_read_block (bsmp_glue.parent, 0, len, */
+/*             (uint32_t *) data); */
+/*     DBE_DEBUG (DBG_LL_IO | DBG_LVL_TRACE, "[sm_pr:bsmp] Received %zd bytes\n", ret); */
 
-    if (ret < 0) {
-        *count = 0;
-        err = -1;
-        goto err_packet_header;
-    }
+/*     if (ret < 0) { */
+/*         *count = 0; */
+/*         err = -1; */
+/*         goto err_packet_header; */
+/*     } */
 
-    *count = ret;
+/*     *count = ret; */
 
-    /* Now, we parse the protocol header and determine how many bytes
-     * we have left to read. Very protocol dependent. See BSMP documentation.
-     * and example located in
-     * https://github.com/lerwys/libbsmp/blob/master/examples/client/puc_serial/main.c
-     * FIXME */
-    len = (data [1] << 8) + data [2];
+/*     /\* Now, we parse the protocol header and determine how many bytes */
+/*      * we have left to read. Very protocol dependent. See BSMP documentation. */
+/*      * and example located in */
+/*      * https://github.com/lerwys/libbsmp/blob/master/examples/client/puc_serial/main.c */
+/*      * FIXME *\/ */
+/*     len = (data [1] << 8) + data [2]; */
 
-    DBE_DEBUG (DBG_LL_IO | DBG_LVL_TRACE, "[sm_pr:bsmp] Receiving another %u "
-            "bytes\n", len);
-    ret = smio_thsafe_client_read_block (bsmp_glue.parent, 0, len,
-            (uint32_t *)(data + *count));
-    DBE_DEBUG (DBG_LL_IO | DBG_LVL_TRACE, "[sm_pr:bsmp] Received another %zd "
-            "bytes\n", ret);
+/*     DBE_DEBUG (DBG_LL_IO | DBG_LVL_TRACE, "[sm_pr:bsmp] Receiving another %u " */
+/*             "bytes\n", len); */
+/*     ret = smio_thsafe_client_read_block (bsmp_glue.parent, 0, len, */
+/*             (uint32_t *)(data + *count)); */
+/*     DBE_DEBUG (DBG_LL_IO | DBG_LVL_TRACE, "[sm_pr:bsmp] Received another %zd " */
+/*             "bytes\n", ret); */
 
-    if (ret < 0) {
-        *count = 0;
-        err = -1;
-        goto err_packet_payload;
-    }
+/*     if (ret < 0) { */
+/*         *count = 0; */
+/*         err = -1; */
+/*         goto err_packet_payload; */
+/*     } */
 
-    *count += ret;
+/*     *count += ret; */
 
-err_packet_payload:
-err_packet_header:
-    return err;
-}
+/* err_packet_payload: */
+/* err_packet_header: */
+/*     return err; */
+/* } */
 
 static const smpr_proto_ops_t smpr_proto_ops_bsmp = {
     .proto_name           = "BSMP",             /* Protocol name */

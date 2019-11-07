@@ -50,9 +50,67 @@ typedef smch_err_e (*smch_rffe_func_fp) (smch_rffe_t *self, uint32_t id,
 #define RFFE_FUNC_NAME_HEADER(func_name)                                \
     static int RFFE_FUNC_NAME(func_name) (void *owner, void *args, void *ret)
 
-static int _rffe_var_rw (void *owner, void *args, void *ret,
-        smch_rffe_func_fp read_func, smch_rffe_func_fp write_func,
-        RFFE_OPCODE_TYPE id, const char *error_msg)
+struct _smch_rffe_t {
+    smpr_t *proto;                                       /* PROTO protocol object */
+};
+
+static int scpi_read_line(smch_rffe_t *self, char* line, size_t size)
+{
+    smio_t *parent = smpr_get_parent (self->proto);
+    ssize_t ret;
+    size_t i;
+
+    for (i = 0; (i + 1) < size; i++)
+    {
+        ret = smio_thsafe_client_read_block (parent, 0, 1,
+                                             (uint32_t *) &line[i]);
+        if (ret != 1)
+        {
+            line[i] = '\0';
+            i = -1;
+            break;
+        }
+
+        if (line[i] == '\n') break;
+    }
+
+    line[i] = '\0';
+    return i;
+}
+
+static int scpi_write_line(smch_rffe_t *self, const char* line)
+{
+    smio_t *parent = smpr_get_parent (self->proto);
+    ssize_t ret;
+    ssize_t i;
+
+    for (i = 0; line[i]; i++);
+
+    ret = smio_thsafe_client_write_block (parent, 0, i,
+                                          (uint32_t *) line);
+    if (ret != i)
+    {
+        i = -1;
+    }
+    else
+    {
+        ret = smio_thsafe_client_write_block (parent, 0, 1,
+                                              (uint32_t *) "\n");
+        if (ret != 1) i = -1;
+    }
+
+    return i;
+}
+
+enum scpi_req_type {
+    scpi_double,
+    scpi_int,
+    scpi_bool,
+    scpi_none,
+};
+
+static int _rffe_var_rw (void *owner, void *args, const char* req,
+       enum scpi_req_type req_type, const char *error_msg, void* ret)
 {
     assert (owner);
     assert (args);
@@ -66,37 +124,81 @@ static int _rffe_var_rw (void *owner, void *args, void *ret,
     uint32_t rw = *(uint32_t *) EXP_MSG_ZMQ_FIRST_ARG(args);
 
     EXP_MSG_ZMQ_ARG_TYPE param_zmq = EXP_MSG_ZMQ_PEEK_NEXT_ARG(args);
-    size_t param_size = EXP_MSG_ZMQ_ARG_SIZE(param_zmq);
     void *param = EXP_MSG_ZMQ_ARG_DATA(param_zmq);
-    uint32_t ret_size = DISP_GET_ASIZE(rffe_exp_ops [id]->retval);
 
-    DBE_DEBUG (DBG_SM_IO | DBG_LVL_TRACE, "[sm_io:rffe_exp] Calling "
-            "RFFE function ID %u\n", id);
+    DBE_DEBUG (DBG_SM_IO | DBG_LVL_TRACE, "[sm_io:rffe_exp] Making "
+            "RFFE scpi request %s\n", req);
 
-    smch_err_e serr = SMCH_SUCCESS;
+    //smch_err_e serr = SMCH_SUCCESS;
     /* Call specific function */
+
     if (rw) {
-        serr = (read_func) (smch_rffe, id, (uint8_t *) ret, ret_size);
-        if (serr != SMCH_SUCCESS) {
-            err = -RFFE_ERR;
-        }
-        else {
-            err = ret_size;
+        char ans[128];
+        scpi_write_line(smch_rffe, req);
+        scpi_read_line(smch_rffe, ans, sizeof(ans));
+
+        switch (req_type) {
+        case scpi_double:
+            sscanf(ans, "%lf", (double*)ret);
+            err = 8;
+            break;
+
+        case scpi_int:
+        case scpi_bool:
+            sscanf(ans, "%d", (int*)ret);
+            err = 4;
+            break;
+
+        default:
+            break;
         }
     }
     else {
-        serr = (write_func) (smch_rffe, id, (uint8_t *) param, param_size);
-        if (serr != SMCH_SUCCESS) {
-            err = -RFFE_ERR;
-        }
-        else {
-            err = -RFFE_OK;
+        char req_str[128];
+        switch (req_type) {
+        case scpi_double:
+            snprintf(req_str, sizeof(req_str), "%s %lf", req, *((double *) param));
+            scpi_write_line(smch_rffe, req_str);
+            break;
+
+        case scpi_int:
+        case scpi_bool:
+            snprintf(req_str, sizeof(req_str), "%s %lf", req, *((double *) param));
+            scpi_write_line(smch_rffe, req_str);
+            break;
+
+        case scpi_none:
+            scpi_write_line(smch_rffe, req);
+            break;
+
+        default:
+            break;
         }
     }
-    DBE_DEBUG (DBG_SM_IO | DBG_LVL_TRACE,
-            "[sm_io:rffe_exp] Function %s %s\n",
-            rffe_exp_ops [id]->name,
-            (err == -RFFE_ERR)? error_msg : "successfully executed");
+
+    /* if (rw) { */
+    /*     serr = (read_func) (smch_rffe, id, (uint8_t *) ret, ret_size); */
+    /*     if (serr != SMCH_SUCCESS) { */
+    /*         err = -RFFE_ERR; */
+    /*     } */
+    /*     else { */
+    /*         err = ret_size; */
+    /*     } */
+    /* } */
+    /* else { */
+    /*     serr = (write_func) (smch_rffe, id, (uint8_t *) param, param_size); */
+    /*     if (serr != SMCH_SUCCESS) { */
+    /*         err = -RFFE_ERR; */
+    /*     } */
+    /*     else { */
+    /*         err = -RFFE_OK; */
+    /*     } */
+    /* } */
+    /* DBE_DEBUG (DBG_SM_IO | DBG_LVL_TRACE, */
+    /*         "[sm_io:rffe_exp] Function %s %s\n", */
+    /*         rffe_exp_ops [id]->name, */
+    /*         (err == -RFFE_ERR)? error_msg : "successfully executed"); */
+    (void)(error_msg);
 
 err_get_rffe_handler:
     return err;
@@ -104,130 +206,313 @@ err_get_rffe_handler:
 
 RFFE_FUNC_NAME_HEADER(att)
 {
-    return _rffe_var_rw(owner, args, ret, smch_rffe_read_var,
-            smch_rffe_write_var, RFFE_OPCODE_SET_GET_ATT,
-            "Could not set/get RFFE attenuator");
+    (void)(owner);
+    uint32_t rw = *(uint32_t *) EXP_MSG_ZMQ_FIRST_ARG(args);
+    int res = 0;
+
+    if (rw) {
+        res = _rffe_var_rw (owner, args, "GET:ATTEnuation?", scpi_double,
+                            "Could not get RFFE attenuator", ret);
+    }
+    else {
+        res = _rffe_var_rw (owner, args, "SET:ATTEnuation", scpi_double,
+                            "Could not set RFFE attenuator", ret);
+    }
+
+    return res;
 }
 
 RFFE_FUNC_NAME_HEADER(temp_ac)
 {
-    return _rffe_var_rw(owner, args, ret, smch_rffe_read_var,
-            smch_rffe_write_var, RFFE_OPCODE_SET_GET_TEMP_AC,
-            "Could not set/get RFFE temperature AC");
+    (void)(owner);
+    uint32_t rw = *(uint32_t *) EXP_MSG_ZMQ_FIRST_ARG(args);
+    int res = 0;
+
+    if (rw) {
+        res = _rffe_var_rw (owner, args, "MEASure:TEMPerature:AC?", scpi_double,
+                            "Could not get RFFE temperature AC", ret);
+    }
+    else {
+        res = -1;
+    }
+
+    return res;
 }
 
 RFFE_FUNC_NAME_HEADER(temp_bd)
 {
-    return _rffe_var_rw(owner, args, ret, smch_rffe_read_var,
-            smch_rffe_write_var, RFFE_OPCODE_SET_GET_TEMP_BD,
-            "Could not set/get RFFE temperature BD");
+    (void)(owner);
+    uint32_t rw = *(uint32_t *) EXP_MSG_ZMQ_FIRST_ARG(args);
+    int res = 0;
+
+    if (rw) {
+        res = _rffe_var_rw (owner, args, "MEASure:TEMPerature:BD?", scpi_double,
+                            "Could not get RFFE temperature BD", ret);
+    }
+    else {
+        res = -1;
+    }
+
+    return res;
 }
 
 RFFE_FUNC_NAME_HEADER(set_point_ac)
 {
-    return _rffe_var_rw(owner, args, ret, smch_rffe_read_var,
-            smch_rffe_write_var, RFFE_OPCODE_SET_GET_SET_POINT_AC,
-            "Could not set/get RFFE set point AC");
+    (void)(owner);
+    uint32_t rw = *(uint32_t *) EXP_MSG_ZMQ_FIRST_ARG(args);
+    int res = 0;
+
+    if (rw) {
+        res = _rffe_var_rw (owner, args, "GET:TEMPerature:SETPoint:AC?", scpi_double,
+                            "Could not get RFFE set point AC", ret);
+    }
+    else {
+        res = _rffe_var_rw (owner, args, "SET:TEMPerature:SETPoint:AC", scpi_double,
+                            "Could not set RFFE set point AC", ret);
+    }
+
+    return res;
 }
 
 RFFE_FUNC_NAME_HEADER(set_point_bd)
 {
-    return _rffe_var_rw(owner, args, ret, smch_rffe_read_var,
-            smch_rffe_write_var, RFFE_OPCODE_SET_GET_SET_POINT_BD,
-            "Could not set/get RFFE set point BD");
+    (void)(owner);
+    uint32_t rw = *(uint32_t *) EXP_MSG_ZMQ_FIRST_ARG(args);
+    int res = 0;
+
+    if (rw) {
+        res = _rffe_var_rw (owner, args, "GET:TEMPerature:SETPoint:BD?", scpi_double,
+                            "Could not get RFFE set point BD", ret);
+    }
+    else {
+        res = _rffe_var_rw (owner, args, "SET:TEMPerature:SETPoint:BD", scpi_double,
+                            "Could not set RFFE set point BD", ret);
+    }
+
+    return res;
 }
 
 RFFE_FUNC_NAME_HEADER(temp_control)
 {
-    return _rffe_var_rw(owner, args, ret, smch_rffe_read_var,
-            smch_rffe_write_var, RFFE_OPCODE_SET_GET_TEMP_CONTROL,
-            "Could not set/get RFFE temperature control");
+    (void)(owner);
+    uint32_t rw = *(uint32_t *) EXP_MSG_ZMQ_FIRST_ARG(args);
+    int res = 0;
+
+    if (rw) {
+        res = _rffe_var_rw (owner, args, "GET:TEMPControl:AUTOmatic?", scpi_bool,
+                            "Could not get RFFE temperature control", ret);
+    }
+    else {
+        res = _rffe_var_rw (owner, args, "SET:TEMPControl:AUTOmatic", scpi_bool,
+                            "Could not set RFFE temperature control", ret);
+    }
+
+    return res;
 }
 
 RFFE_FUNC_NAME_HEADER(heater_ac)
 {
-    return _rffe_var_rw(owner, args, ret, smch_rffe_read_var,
-            smch_rffe_write_var, RFFE_OPCODE_SET_GET_HEATER_AC,
-            "Could not set/get RFFE heater AC");
+    (void)(owner);
+    uint32_t rw = *(uint32_t *) EXP_MSG_ZMQ_FIRST_ARG(args);
+    int res = 0;
+
+    if (rw) {
+        res = _rffe_var_rw (owner, args, "GET:DAC:OUTput:AC?", scpi_double,
+                            "Could not get RFFE heater AC", ret);
+    }
+    else {
+        res = _rffe_var_rw (owner, args, "SET:DAC:OUTput:AC", scpi_double,
+                            "Could not set RFFE heater AC", ret);
+    }
+
+    return res;
 }
 
 
 RFFE_FUNC_NAME_HEADER(heater_bd)
 {
-    return _rffe_var_rw(owner, args, ret, smch_rffe_read_var,
-            smch_rffe_write_var, RFFE_OPCODE_SET_GET_HEATER_BD,
-            "Could not set/get RFFE output BD");
+    (void)(owner);
+    uint32_t rw = *(uint32_t *) EXP_MSG_ZMQ_FIRST_ARG(args);
+    int res = 0;
+
+    if (rw) {
+        res = _rffe_var_rw (owner, args, "GET:DAC:OUTput:BD?", scpi_double,
+                            "Could not get RFFE heater BD", ret);
+    }
+    else {
+        res = _rffe_var_rw (owner, args, "SET:DAC:OUTput:BD", scpi_double,
+                            "Could not set RFFE heater BD", ret);
+    }
+
+    return res;
 }
 
 RFFE_FUNC_NAME_HEADER(reset)
 {
-    return _rffe_var_rw(owner, args, ret, smch_rffe_read_var,
-            smch_rffe_write_var, RFFE_OPCODE_SET_GET_RESET,
-            "Could not set/get RFFE reset");
+    (void)(owner);
+    uint32_t rw = *(uint32_t *) EXP_MSG_ZMQ_FIRST_ARG(args);
+    int res = 0;
+
+    if (rw) {
+        /*
+         *
+         */
+        res = -1;
+    }
+    else {
+        res = _rffe_var_rw (owner, args, "SYStem:RESet", scpi_none,
+                            "Could not set RFFE heater BD", ret);
+    }
+
+    return res;
 }
 
 RFFE_FUNC_NAME_HEADER(reprog)
 {
-    return _rffe_var_rw(owner, args, ret, smch_rffe_read_var,
-            smch_rffe_write_var, RFFE_OPCODE_SET_GET_REPROG,
-            "Could not set/get RFFE reprogramming");
+    (void)(owner);
+    (void)(owner);
+    (void)(args);
+    (void)(ret);
+
+    /*
+     * Not available through scpi
+     */
+    return -1;
 }
 
 RFFE_FUNC_NAME_HEADER(data)
 {
-    return _rffe_var_rw(owner, args, ret, smch_rffe_read_var,
-            smch_rffe_write_var, RFFE_OPCODE_SET_GET_DATA,
-            "Could not set/get RFFE data");
+    (void)(owner);
+    (void)(owner);
+    (void)(args);
+    (void)(ret);
+
+    /*
+     * Not implemented
+     */
+    return -1;
 }
 
 RFFE_FUNC_NAME_HEADER(version)
 {
-    return _rffe_var_rw(owner, args, ret, smch_rffe_read_var,
-            smch_rffe_write_var, RFFE_OPCODE_SET_GET_VERSION,
-            "Could not set/get RFFE version");
+    (void)(owner);
+    (void)(owner);
+    (void)(args);
+    (void)(ret);
+
+    /*
+     * Not implemented yet
+     */
+    return -1;
 }
 
 
 RFFE_FUNC_NAME_HEADER(pid_ac_kp)
 {
-    return _rffe_var_rw(owner, args, ret, smch_rffe_read_var,
-            smch_rffe_write_var, RFFE_OPCODE_SET_GET_PID_AC_KP,
-            "Could not set/get RFFE AC PID KP parameter");
+    (void)(owner);
+    uint32_t rw = *(uint32_t *) EXP_MSG_ZMQ_FIRST_ARG(args);
+    int res = 0;
+
+    if (rw) {
+        res = _rffe_var_rw (owner, args, "GET:PID:Kc:AC?", scpi_double,
+                            "Could not get RFFE AC PID KP parameter", ret);
+    }
+    else {
+        res = _rffe_var_rw (owner, args, "SET:PID:Kc:AC", scpi_double,
+                            "Could not set RFFE AC PID KP parameter", ret);
+    }
+
+    return res;
 }
 
 RFFE_FUNC_NAME_HEADER(pid_ac_ti)
 {
-    return _rffe_var_rw(owner, args, ret, smch_rffe_read_var,
-            smch_rffe_write_var, RFFE_OPCODE_SET_GET_PID_AC_TI,
-            "Could not set/get RFFE AC PID TI parameter");
+    (void)(owner);
+    uint32_t rw = *(uint32_t *) EXP_MSG_ZMQ_FIRST_ARG(args);
+    int res = 0;
+
+    if (rw) {
+        res = _rffe_var_rw (owner, args, "GET:PID:Ti:AC?", scpi_double,
+                            "Could not get RFFE AC PID TI parameter", ret);
+    }
+    else {
+        res = _rffe_var_rw (owner, args, "SET:PID:Ti:AC", scpi_double,
+                            "Could not set RFFE AC PID TI parameter", ret);
+    }
+
+    return res;
 }
 
 RFFE_FUNC_NAME_HEADER(pid_ac_td)
 {
-    return _rffe_var_rw(owner, args, ret, smch_rffe_read_var,
-            smch_rffe_write_var, RFFE_OPCODE_SET_GET_PID_AC_TD,
-            "Could not set/get RFFE AC PID TD parameter");
+    (void)(owner);
+    uint32_t rw = *(uint32_t *) EXP_MSG_ZMQ_FIRST_ARG(args);
+    int res = 0;
+
+    if (rw) {
+        res = _rffe_var_rw (owner, args, "GET:PID:Td:AC?", scpi_double,
+                            "Could not get RFFE AC PID TD parameter", ret);
+    }
+    else {
+        res = _rffe_var_rw (owner, args, "SET:PID:Td:AC", scpi_double,
+                            "Could not set RFFE AC PID TD parameter", ret);
+    }
+
+    return res;
 }
 
 RFFE_FUNC_NAME_HEADER(pid_bd_kp)
 {
-    return _rffe_var_rw(owner, args, ret, smch_rffe_read_var,
-            smch_rffe_write_var, RFFE_OPCODE_SET_GET_PID_BD_KP,
-            "Could not set/get RFFE BD PID KP parameter");
+    (void)(owner);
+    uint32_t rw = *(uint32_t *) EXP_MSG_ZMQ_FIRST_ARG(args);
+    int res = 0;
+
+    if (rw) {
+        res = _rffe_var_rw (owner, args, "GET:PID:Kc:BD?", scpi_double,
+                            "Could not get RFFE BD PID KP parameter", ret);
+    }
+    else {
+        res = _rffe_var_rw (owner, args, "SET:PID:Kc:BD", scpi_double,
+                            "Could not set RFFE BD PID KP parameter", ret);
+    }
+
+    return res;
 }
 
 RFFE_FUNC_NAME_HEADER(pid_bd_ti)
 {
-    return _rffe_var_rw(owner, args, ret, smch_rffe_read_var,
-            smch_rffe_write_var, RFFE_OPCODE_SET_GET_PID_BD_TI,
-            "Could not set/get RFFE BD PID TI parameter");
+    (void)(owner);
+    uint32_t rw = *(uint32_t *) EXP_MSG_ZMQ_FIRST_ARG(args);
+    int res = 0;
+
+    if (rw) {
+        res = _rffe_var_rw (owner, args, "GET:PID:Ti:BD?", scpi_double,
+                            "Could not get RFFE BD PID TI parameter", ret);
+    }
+    else {
+        res = _rffe_var_rw (owner, args, "SET:PID:Ti:BD", scpi_double,
+                            "Could not set RFFE BD PID TI parameter", ret);
+    }
+
+    return res;
 }
 
 RFFE_FUNC_NAME_HEADER(pid_bd_td)
 {
-    return _rffe_var_rw(owner, args, ret, smch_rffe_read_var,
-            smch_rffe_write_var, RFFE_OPCODE_SET_GET_PID_BD_TD,
-            "Could not set/get RFFE BD PID TD parameter");
+    (void)(owner);
+    uint32_t rw = *(uint32_t *) EXP_MSG_ZMQ_FIRST_ARG(args);
+    int res = 0;
+
+    if (rw) {
+        res = _rffe_var_rw (owner, args, "GET:PID:Ti:BD?", scpi_double,
+                            "Could not get RFFE BD PID TI parameter", ret);
+    }
+    else {
+        res = _rffe_var_rw (owner, args, "SET:PID:Ti:BD", scpi_double,
+                            "Could not set RFFE BD PID TI parameter", ret);
+    }
+
+    return res;
 }
 
 /* Exported function pointers */
