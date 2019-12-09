@@ -55,6 +55,8 @@ smio_rffe_scpi_t * smio_rffe_scpi_new (smio_t *parent)
     smio_rffe_scpi_t *self = (smio_rffe_scpi_t *) zmalloc (sizeof *self);
     ASSERT_ALLOC(self, err_self_alloc);
 
+    /* Create BSMP protocol for RFFE */
+    self->smpr_ctl = smpr_scpi_new ();
     self->smch_ctl = smch_rffe_scpi_new (parent, smpr_scpi_get_ops (self->smpr_ctl), 0);
     ASSERT_ALLOC(self->smch_ctl, err_rffe_alloc);
 

@@ -32,7 +32,7 @@
 
 /* Known modules IDs */
 #define RFFE_SCPI_DEVID       0x30625320
-#define RFFE_SCPI_NAME        "RFFE_SCPI"
+#define RFFE_SCPI_NAME        "RFFE"
 
 extern const smio_bootstrap_ops_t rffe_scpi_bootstrap_ops;
 
